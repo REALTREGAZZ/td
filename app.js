@@ -1,16 +1,16 @@
-// ==========================================
-// 1. CONFIGURACIÓN DE RED (SISTEMA PROFESIONAL)
-// ==========================================
+/**
+ * TRADECOACH AI - FRONTEND PROFESIONAL
+ * Conexión con Gemini AI y Coinbase API
+ */
+
 const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3000'
     : 'https://tradecoach-backend.onrender.com';
 
-// STATE
+// ESTADO GLOBAL
 let currentSymbol = 'BTC'; 
 
-// ==========================================
-// 2. ELEMENTOS DEL DOM
-// ==========================================
+// ELEMENTOS DEL DOM
 const els = {
     cryptoBtns: document.querySelectorAll('.crypto-btn'),
     card: document.getElementById('card'),
@@ -23,19 +23,18 @@ const els = {
     coachNote: document.getElementById('coach-note'),
     riskDisplay: document.getElementById('risk-display'),
     trendDisplay: document.getElementById('trend-display'),
-    errorMessage: document.getElementById('error-message'), // Aquí es donde inyectaremos el texto limpio
     actionBtn: document.getElementById('action-btn'),
+    scanBtn: document.getElementById('scan-btn'), // Asegúrate de que este ID existe en tu HTML
     copyBtn: document.getElementById('copy-btn')
 };
 
-// ==========================================
-// 3. INICIALIZACIÓN
-// ==========================================
+// 1. INICIALIZACIÓN
 function init() {
     setupListeners();
 }
 
 function setupListeners() {
+    // Selección de Cripto
     els.cryptoBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             els.cryptoBtns.forEach(b => b.classList.remove('active'));
@@ -46,7 +45,9 @@ function setupListeners() {
         });
     });
 
+    // Botones Principales
     if (els.actionBtn) els.actionBtn.addEventListener('click', handleConsult);
+    if (els.scanBtn) els.scanBtn.addEventListener('click', handleScan);
     if (els.copyBtn) els.copyBtn.addEventListener('click', handleCopy);
 }
 
@@ -57,56 +58,97 @@ function resetCard() {
     els.card.className = 'card'; 
 }
 
-// ==========================================
-// 4. LÓGICA DE CONSULTA (SIN RASTROS DE PUERTO 3000)
-// ==========================================
+// 2. LÓGICA DE CONSULTA DE PRECIOS
 async function handleConsult() {
     showState('loading');
     els.card.className = 'card';
 
     try {
-        const response = await fetch(`${API_URL}/api/coach`, {
+        const response = await fetch(`${API_URL}/api/consultar-coach`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ activo: currentSymbol })
         });
 
-        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+        if (!response.ok) throw new Error(`Status: ${response.status}`);
 
         const resultado = await response.json();
 
-        renderResult({
-            precio: resultado.data.price,
-            consejo: resultado.data.advice
-        });
+        renderResult(resultado.data.price, resultado.data.advice);
 
         els.actionBtn.textContent = 'NUEVA CONSULTA';
-        els.copyBtn.classList.remove('hidden');
+        if (els.copyBtn) els.copyBtn.classList.remove('hidden');
 
     } catch (error) {
         console.error("Conexión fallida:", error);
-        // SER ASTUTO: Reemplazamos todo el contenido del error para borrar lo del puerto 3000
         showError("El Coach está despertando en la nube. <br><br> Por favor, espera 30 segundos y pulsa 'NUEVA CONSULTA'.");
+        if (els.actionBtn) els.actionBtn.textContent = 'REINTENTAR';
     }
 }
 
-// ==========================================
-// 5. RENDERIZADO Y UI
-// ==========================================
-function renderResult(data) {
+// 3. LÓGICA DE ESCANEO CON IA (GEMINI)
+async function handleScan() {
+    // Selector de archivos dinámico
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    
+    fileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        showState('loading');
+        
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const base64Image = reader.result;
+
+            try {
+                const response = await fetch(`${API_URL}/api/scan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        imageBase64: base64Image,
+                        activoActual: currentSymbol 
+                    })
+                });
+
+                const res = await response.json();
+                
+                if (res.success) {
+                    renderResult("ANÁLISIS IA", res.message, true);
+                } else {
+                    throw new Error(res.message);
+                }
+            } catch (error) {
+                console.error("Error en Scan:", error);
+                showError("El Coach no pudo leer la imagen. Intenta con una captura más clara del gráfico.");
+            }
+        };
+    };
+    
+    fileInput.click();
+}
+
+// 4. UI Y RENDERIZADO
+function renderResult(precio, consejo, isScan = false) {
     els.card.className = `card glow-neutral`;
-    els.statusBadge.textContent = 'NEUTRAL';
+    els.statusBadge.textContent = isScan ? 'ANALIZANDO' : 'LIVE';
     els.statusBadge.style.backgroundColor = `#FFBB3320`;
     els.statusBadge.style.color = '#FFBB33';
 
-    const price = parseFloat(data.precio);
-    els.priceDisplay.textContent = isNaN(price) ? data.precio : `$${price.toLocaleString()}`;
-    els.coachNote.textContent = `"${data.consejo}"`;
+    // Formatear precio si es número
+    const priceNum = parseFloat(precio);
+    els.priceDisplay.textContent = isNaN(priceNum) ? precio : `$${priceNum.toLocaleString()}`;
+    
+    els.coachNote.textContent = consejo.startsWith('"') ? consejo : `"${consejo}"`;
 
-    els.riskDisplay.textContent = `RIESGO: MEDIO`;
-    els.trendDisplay.textContent = `TENDENCIA: ESTABLE`;
+    els.riskDisplay.textContent = isScan ? `TIPO: ESCÁNER` : `RIESGO: MEDIO`;
+    els.trendDisplay.textContent = isScan ? `ORIGEN: VISUAL` : `TENDENCIA: ESTABLE`;
 
     showState('result');
+    if (isScan && els.actionBtn) els.actionBtn.textContent = 'NUEVO ESCANEO';
 }
 
 function handleCopy() {
@@ -120,16 +162,18 @@ function handleCopy() {
 }
 
 function showState(state) {
-    const states = ['initialState', 'loadingState', 'resultState', 'errorState'];
-    states.forEach(s => { if (els[s]) els[s].classList.add('hidden'); });
-    if (els[`${state}State`]) els[`${state}State`].classList.remove('hidden');
+    const states = ['initial', 'loading', 'result', 'error'];
+    states.forEach(s => {
+        const el = document.getElementById(`${s}-state`);
+        if (el) el.classList.add('hidden');
+    });
+    const active = document.getElementById(`${state}-state`);
+    if (active) active.classList.remove('hidden');
 }
 
 function showError(msg) {
     if (els.errorState) {
-        // ASTUCIA MÁXIMA: Forzamos que el contenedor de error SOLO tenga nuestro mensaje
-        // Esto elimina cualquier texto antiguo que estuviera escrito en el HTML (como lo del puerto 3000)
-        els.errorState.innerHTML = `<p id="error-message" style="color: #ff4444; font-weight: bold;">${msg}</p>`;
+        els.errorState.innerHTML = `<p style="color: #ff4444; font-weight: bold; text-align: center; padding: 10px;">${msg}</p>`;
     }
     showState('error');
     els.card.className = 'card glow-red';
