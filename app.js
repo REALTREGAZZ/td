@@ -1,6 +1,6 @@
 /**
- * TRADECOACH AI - FRONTEND PROFESIONAL
- * Conexión con Gemini AI y Coinbase API
+ * TRADECOACH AI - FRONTEND DEFINITIVO
+ * Sistema de análisis con Google Gemini AI
  */
 
 const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -24,17 +24,18 @@ const els = {
     riskDisplay: document.getElementById('risk-display'),
     trendDisplay: document.getElementById('trend-display'),
     actionBtn: document.getElementById('action-btn'),
-    scanBtn: document.getElementById('scan-btn'), // Asegúrate de que este ID existe en tu HTML
+    scanBtn: document.getElementById('scan-btn'), 
     copyBtn: document.getElementById('copy-btn')
 };
 
 // 1. INICIALIZACIÓN
 function init() {
     setupListeners();
+    console.log("TradeCoach AI Initialized en:", API_URL);
 }
 
 function setupListeners() {
-    // Selección de Cripto
+    // Selección de Monedas
     els.cryptoBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             els.cryptoBtns.forEach(b => b.classList.remove('active'));
@@ -45,7 +46,7 @@ function setupListeners() {
         });
     });
 
-    // Botones Principales
+    // Botones de Acción
     if (els.actionBtn) els.actionBtn.addEventListener('click', handleConsult);
     if (els.scanBtn) els.scanBtn.addEventListener('click', handleScan);
     if (els.copyBtn) els.copyBtn.addEventListener('click', handleCopy);
@@ -58,7 +59,7 @@ function resetCard() {
     els.card.className = 'card'; 
 }
 
-// 2. LÓGICA DE CONSULTA DE PRECIOS
+// 2. CONSULTA DE PRECIOS (Coinbase)
 async function handleConsult() {
     showState('loading');
     els.card.className = 'card';
@@ -73,22 +74,19 @@ async function handleConsult() {
         if (!response.ok) throw new Error(`Status: ${response.status}`);
 
         const resultado = await response.json();
-
         renderResult(resultado.data.price, resultado.data.advice);
 
         els.actionBtn.textContent = 'NUEVA CONSULTA';
         if (els.copyBtn) els.copyBtn.classList.remove('hidden');
 
     } catch (error) {
-        console.error("Conexión fallida:", error);
-        showError("El Coach está despertando en la nube. <br><br> Por favor, espera 30 segundos y pulsa 'NUEVA CONSULTA'.");
-        if (els.actionBtn) els.actionBtn.textContent = 'REINTENTAR';
+        console.error("Error de conexión:", error);
+        showError("El Coach está despertando. <br><br> Por favor, espera 30 segundos y pulsa 'REINTENTAR'.");
     }
 }
 
-// 3. LÓGICA DE ESCANEO CON IA (GEMINI)
+// 3. ESCANEO DE GRÁFICOS (Google Gemini AI)
 async function handleScan() {
-    // Selector de archivos dinámico
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
@@ -123,7 +121,7 @@ async function handleScan() {
                 }
             } catch (error) {
                 console.error("Error en Scan:", error);
-                showError("El Coach no pudo leer la imagen. Intenta con una captura más clara del gráfico.");
+                showError("No se pudo analizar el gráfico. Asegúrate de que la imagen sea clara y el servidor esté activo.");
             }
         };
     };
@@ -134,21 +132,53 @@ async function handleScan() {
 // 4. UI Y RENDERIZADO
 function renderResult(precio, consejo, isScan = false) {
     els.card.className = `card glow-neutral`;
-    els.statusBadge.textContent = isScan ? 'ANALIZANDO' : 'LIVE';
+    els.statusBadge.textContent = isScan ? 'ANALIZADO' : 'LIVE';
     els.statusBadge.style.backgroundColor = `#FFBB3320`;
     els.statusBadge.style.color = '#FFBB33';
 
-    // Formatear precio si es número
     const priceNum = parseFloat(precio);
     els.priceDisplay.textContent = isNaN(priceNum) ? precio : `$${priceNum.toLocaleString()}`;
     
-    els.coachNote.textContent = consejo.startsWith('"') ? consejo : `"${consejo}"`;
+    // Limpiamos comillas duplicadas
+    const consejoLimpio = consejo.replace(/^"|"$/g, '');
+    els.coachNote.textContent = `"${consejoLimpio}"`;
 
     els.riskDisplay.textContent = isScan ? `TIPO: ESCÁNER` : `RIESGO: MEDIO`;
     els.trendDisplay.textContent = isScan ? `ORIGEN: VISUAL` : `TENDENCIA: ESTABLE`;
 
     showState('result');
     if (isScan && els.actionBtn) els.actionBtn.textContent = 'NUEVO ESCANEO';
+}
+
+function showState(state) {
+    // Ocultar todos y limpiar el contenedor de error de basura estática del HTML
+    const states = ['initial', 'loading', 'result', 'error'];
+    states.forEach(s => {
+        const el = document.getElementById(`${s}-state`);
+        if (el) {
+            el.classList.add('hidden');
+            if (s === 'error') el.innerHTML = ''; 
+        }
+    });
+
+    const active = document.getElementById(`${state}-state`);
+    if (active) active.classList.remove('hidden');
+}
+
+function showError(msg) {
+    if (els.errorState) {
+        // Inyectamos el mensaje dinámicamente para borrar el texto rojo viejo
+        els.errorState.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <p style="color: #ff4444; font-weight: bold; line-height: 1.4;">${msg}</p>
+                <button onclick="resetCard()" style="margin-top:15px; background:rgba(255,255,255,0.1); color:white; border:1px solid #444; padding:8px 15px; border-radius:8px; cursor:pointer;">
+                    Intentar de nuevo
+                </button>
+            </div>
+        `;
+    }
+    showState('error');
+    els.card.className = 'card glow-red';
 }
 
 function handleCopy() {
@@ -161,22 +191,5 @@ function handleCopy() {
     });
 }
 
-function showState(state) {
-    const states = ['initial', 'loading', 'result', 'error'];
-    states.forEach(s => {
-        const el = document.getElementById(`${s}-state`);
-        if (el) el.classList.add('hidden');
-    });
-    const active = document.getElementById(`${state}-state`);
-    if (active) active.classList.remove('hidden');
-}
-
-function showError(msg) {
-    if (els.errorState) {
-        els.errorState.innerHTML = `<p style="color: #ff4444; font-weight: bold; text-align: center; padding: 10px;">${msg}</p>`;
-    }
-    showState('error');
-    els.card.className = 'card glow-red';
-}
-
+// Iniciar aplicación
 init();
