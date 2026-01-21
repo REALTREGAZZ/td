@@ -3,14 +3,16 @@
  * Sistema de análisis con Google Gemini AI
  */
 
+// 1. CONFIGURACIÓN DE CONEXIÓN
+// Detecta si estás en tu PC (localhost) o en internet (Render)
 const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3000'
     : 'https://tradecoach-backend.onrender.com';
 
-// ESTADO GLOBAL
+// ESTADO GLOBAL DE LA APP
 let currentSymbol = 'BTC'; 
 
-// ELEMENTOS DEL DOM
+// ELEMENTOS DEL DOM (MAPEADOS PARA EL HTML)
 const els = {
     cryptoBtns: document.querySelectorAll('.crypto-btn'),
     card: document.getElementById('card'),
@@ -28,38 +30,44 @@ const els = {
     copyBtn: document.getElementById('copy-btn')
 };
 
-// 1. INICIALIZACIÓN
+// 2. INICIALIZACIÓN
 function init() {
     setupListeners();
-    console.log("TradeCoach AI Initialized en:", API_URL);
+    console.log("🚀 TradeCoach AI iniciado con servidor en:", API_URL);
 }
 
+// Configuración de eventos de botones
 function setupListeners() {
-    // Selección de Monedas
+    // Selección de Monedas (Bitcoin, Ethereum, Solana)
     els.cryptoBtns.forEach(btn => {
         btn.addEventListener('click', () => {
+            // UI: Cambiar botón activo
             els.cryptoBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            
+            // Lógica: Mapear nombre a Símbolo
             const symbolMap = { 'bitcoin': 'BTC', 'ethereum': 'ETH', 'solana': 'SOL' };
             currentSymbol = symbolMap[btn.dataset.symbol] || btn.dataset.symbol;
+            
             resetCard();
         });
     });
 
-    // Botones de Acción
+    // Botones de Acción principales
     if (els.actionBtn) els.actionBtn.addEventListener('click', handleConsult);
     if (els.scanBtn) els.scanBtn.addEventListener('click', handleScan);
     if (els.copyBtn) els.copyBtn.addEventListener('click', handleCopy);
 }
 
-function resetCard() {
+// Función para limpiar la tarjeta y volver al inicio
+window.resetCard = function() {
     showState('initial');
     if (els.copyBtn) els.copyBtn.classList.add('hidden');
     if (els.actionBtn) els.actionBtn.textContent = 'CONSULTAR COACH';
     els.card.className = 'card'; 
-}
+};
 
-// 2. CONSULTA DE PRECIOS (Coinbase)
+// 3. LÓGICA DE CONSULTA DE PRECIOS (TEXTO)
 async function handleConsult() {
     showState('loading');
     els.card.className = 'card';
@@ -67,26 +75,32 @@ async function handleConsult() {
     try {
         const response = await fetch(`${API_URL}/api/consultar-coach`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'bypass-tunnel-reminder': 'true' // Salta advertencias de túneles
+            },
             body: JSON.stringify({ activo: currentSymbol })
         });
 
-        if (!response.ok) throw new Error(`Status: ${response.status}`);
+        if (!response.ok) throw new Error(`Error ${response.status}`);
 
         const resultado = await response.json();
+        
+        // Renderizar el resultado en la UI
         renderResult(resultado.data.price, resultado.data.advice);
 
         els.actionBtn.textContent = 'NUEVA CONSULTA';
         if (els.copyBtn) els.copyBtn.classList.remove('hidden');
 
     } catch (error) {
-        console.error("Error de conexión:", error);
-        showError("El Coach está despertando. <br><br> Por favor, espera 30 segundos y pulsa 'REINTENTAR'.");
+        console.error("Error en consulta:", error);
+        showError("El Coach está fuera de línea. <br><br> Asegúrate de que el servidor en Render esté 'Active' y espera 30 segundos.");
     }
 }
 
-// 3. ESCANEO DE GRÁFICOS (Google Gemini AI)
+// 4. LÓGICA DE ESCÁNER DE GRÁFICOS (IMAGEN + IA)
 async function handleScan() {
+    // Creamos un input de archivo invisible para abrir la galería/cámara
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
@@ -94,6 +108,12 @@ async function handleScan() {
     fileInput.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        // Validar que la imagen no sea excesivamente grande (Max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            showError("La imagen es muy grande para procesar. Prueba con una captura más pequeña.");
+            return;
+        }
 
         showState('loading');
         
@@ -103,9 +123,13 @@ async function handleScan() {
             const base64Image = reader.result;
 
             try {
+                // Enviamos la imagen al backend corregido
                 const response = await fetch(`${API_URL}/api/scan`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'bypass-tunnel-reminder': 'true'
+                    },
                     body: JSON.stringify({ 
                         imageBase64: base64Image,
                         activoActual: currentSymbol 
@@ -115,13 +139,14 @@ async function handleScan() {
                 const res = await response.json();
                 
                 if (res.success) {
+                    // El primer parámetro es el título que sale arriba en grande
                     renderResult("ANÁLISIS IA", res.message, true);
                 } else {
                     throw new Error(res.message);
                 }
             } catch (error) {
                 console.error("Error en Scan:", error);
-                showError("No se pudo analizar el gráfico. Asegúrate de que la imagen sea clara y el servidor esté activo.");
+                showError("Gemini no pudo procesar esta imagen. <br><br> Intenta con una foto más clara del gráfico.");
             }
         };
     };
@@ -129,29 +154,32 @@ async function handleScan() {
     fileInput.click();
 }
 
-// 4. UI Y RENDERIZADO
+// 5. RENDERIZADO DE LA INTERFAZ (UI)
 function renderResult(precio, consejo, isScan = false) {
+    // Aplicamos efectos visuales
     els.card.className = `card glow-neutral`;
     els.statusBadge.textContent = isScan ? 'ANALIZADO' : 'LIVE';
     els.statusBadge.style.backgroundColor = `#FFBB3320`;
     els.statusBadge.style.color = '#FFBB33';
 
+    // Formatear precio si es número
     const priceNum = parseFloat(precio);
     els.priceDisplay.textContent = isNaN(priceNum) ? precio : `$${priceNum.toLocaleString()}`;
     
-    // Limpiamos comillas duplicadas
-    const consejoLimpio = consejo.replace(/^"|"$/g, '');
+    // Limpiar el texto que devuelve la IA (quitar comillas extra)
+    const consejoLimpio = consejo.replace(/^["']|["']$/g, '').trim();
     els.coachNote.textContent = `"${consejoLimpio}"`;
 
-    els.riskDisplay.textContent = isScan ? `TIPO: ESCÁNER` : `RIESGO: MEDIO`;
-    els.trendDisplay.textContent = isScan ? `ORIGEN: VISUAL` : `TENDENCIA: ESTABLE`;
+    // Cambiar etiquetas informativas
+    els.riskDisplay.textContent = isScan ? `TIPO: IA VISUAL` : `RIESGO: CALCULADO`;
+    els.trendDisplay.textContent = isScan ? `ORIGEN: GRÁFICO` : `TENDENCIA: ACTUAL`;
 
     showState('result');
     if (isScan && els.actionBtn) els.actionBtn.textContent = 'NUEVO ESCANEO';
 }
 
+// Control de estados (Ocultar/Mostrar secciones)
 function showState(state) {
-    // Ocultar todos y limpiar el contenedor de error de basura estática del HTML
     const states = ['initial', 'loading', 'result', 'error'];
     states.forEach(s => {
         const el = document.getElementById(`${s}-state`);
@@ -165,14 +193,14 @@ function showState(state) {
     if (active) active.classList.remove('hidden');
 }
 
+// Mostrar mensajes de error estéticos
 function showError(msg) {
     if (els.errorState) {
-        // Inyectamos el mensaje dinámicamente para borrar el texto rojo viejo
         els.errorState.innerHTML = `
             <div style="text-align: center; padding: 20px;">
-                <p style="color: #ff4444; font-weight: bold; line-height: 1.4;">${msg}</p>
-                <button onclick="resetCard()" style="margin-top:15px; background:rgba(255,255,255,0.1); color:white; border:1px solid #444; padding:8px 15px; border-radius:8px; cursor:pointer;">
-                    Intentar de nuevo
+                <p style="color: #ff4444; font-weight: bold; line-height: 1.4; margin-bottom: 20px;">${msg}</p>
+                <button onclick="resetCard()" style="background:rgba(255,255,255,0.1); color:white; border:1px solid #444; padding:12px 24px; border-radius:8px; cursor:pointer; font-size:14px; text-transform:uppercase; letter-spacing:1px;">
+                    Reintentar
                 </button>
             </div>
         `;
@@ -181,9 +209,10 @@ function showError(msg) {
     els.card.className = 'card glow-red';
 }
 
+// Copiar al portapapeles
 function handleCopy() {
     const note = els.coachNote.textContent.replace(/"/g, '');
-    const textToCopy = `"${note}"\n\n— TradeCoach AI`;
+    const textToCopy = `"${note}"\n\nAnálisis realizado por TradeCoach AI 🚀`;
     navigator.clipboard.writeText(textToCopy).then(() => {
         const originalText = els.copyBtn.textContent;
         els.copyBtn.textContent = '¡COPIADO!';
@@ -191,5 +220,5 @@ function handleCopy() {
     });
 }
 
-// Iniciar aplicación
+// Lanzar la App
 init();
