@@ -15,28 +15,33 @@
     <div class="container">
         <header>
             <h1>TradeCoach AI</h1>
+            <h1>TradeCoach AI</h1>
         </header>
 
         <main>
+            <!-- Selector -->
             <div class="selector">
                 <button class="crypto-btn active" data-symbol="bitcoin">BTC</button>
                 <button class="crypto-btn" data-symbol="ethereum">ETH</button>
                 <button class="crypto-btn" data-symbol="solana">SOL</button>
             </div>
 
+            <!-- Card -->
             <div id="card" class="card">
-                
+                <!-- Initial State -->
                 <div id="initial-state">
-                    <p class="placeholder">Selecciona un activo o sube un gráfico.<br>Tu Coach te espera.</p>
+                    <p class="placeholder">Selecciona un activo.<br>Tu Coach te espera.</p>
                 </div>
 
+                <!-- Loading State -->
                 <div id="loading-state" class="hidden">
                     <div class="spinner"></div>
-                    <p class="placeholder">Analizando con Gemini AI...</p>
+                    <p class="placeholder">Analizando mercado...</p>
                 </div>
 
+                <!-- Result State -->
                 <div id="result-state" class="hidden">
-                    <div id="status-badge" class="status-badge">LIVE</div>
+                    <div id="status-badge" class="status-badge">NEUTRAL</div>
                     <h2 id="price-display">$00,000</h2>
 
                     <div class="coach-section">
@@ -50,24 +55,26 @@
                     </div>
                 </div>
 
+                <!-- Error State -->
                 <div id="error-state" class="hidden">
                     <p id="error-message" class="error-text"></p>
+                    <p style="font-size: 0.8rem; color: #666; margin-top: 10px;">Asegúrate de que el backend está
+                        corriendo en puerto 3000.</p>
                 </div>
             </div>
 
+            <!-- Actions -->
             <div class="actions">
                 <button id="action-btn" class="primary-btn">CONSULTAR COACH</button>
-                
-                <button id="scan-btn" class="primary-btn" style="background-color: #fff; color: #000; margin-left: 10px;">
-                    📸 SCAN TRADE
-                </button>
-                
+                <button id="scan-btn" class="primary-btn"
+                    style="background-color: #fff; color: #000; margin-left: 10px;"
+                    onclick="window.location.href='trade.html'">📸 SCAN TRADE</button>
                 <button id="copy-btn" class="secondary-btn hidden">COPIAR CONSEJO</button>
             </div>
         </main>
 
         <footer>
-            <p>TradeCoach AI v1.0 • No es consejo financiero</p>
+            <p>No es consejo financiero. Solo educativo.</p>
         </footer>
     </div>
 
