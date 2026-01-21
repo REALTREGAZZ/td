@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeCoach AI - Analyzer</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Trade Analyzer 📸</h1>
+            <a href="index.html" class="back-link">← Volver al Coach</a>
+        </header>
+
+        <main>
+            <div class="card">
+                <div id="upload-state">
+                    <p class="placeholder">Sube un screenshot de tu trade (Binance, Bybit, etc)</p>
+
+                    <label for="file-input" class="primary-btn" style="display:block; margin-top:20px; cursor:pointer;">
+                        SELECCIONAR IMAGEN
+                    </label>
+                    <input type="file" id="file-input" accept="image/*" style="display:none">
+                </div>
+
+                <div id="loading-state" class="hidden">
+                    <div class="spinner"></div>
+                    <p class="placeholder">Analizando píxeles...</p>
+                </div>
+
+                <div id="result-state" class="hidden">
+                    <div id="status-badge" class="status-badge">ANALIZADO</div>
+
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="label">POSICIÓN</span>
+                            <span id="pos-display" class="value">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="label">PNL</span>
+                            <span id="pnl-display" class="value">-</span>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="label">ENTRY</span>
+                            <span id="entry-display" class="value">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="label">MARK</span>
+                            <span id="mark-display" class="value">-</span>
+                        </div>
+                    </div>
+
+                    <div class="coach-section" style="margin-top: 20px; border-top: 1px solid #333; padding-top: 20px;">
+                        <span class="label">COACH DICE:</span>
+                        <p id="coach-note" class="note">"..."</p>
+                    </div>
+                </div>
+
+                <div id="error-state" class="hidden">
+                    <p id="error-message" class="error-text"></p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000/api'
+            : 'https://tradecoach-backend.onrender.com/api';
+
+        const fileInput = document.getElementById('file-input');
+        const uploadState = document.getElementById('upload-state');
+        const loadingState = document.getElementById('loading-state');
+        const resultState = document.getElementById('result-state');
+        const errorState = document.getElementById('error-state');
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // UI Update
+            uploadState.classList.add('hidden');
+            loadingState.classList.remove('hidden');
+            errorState.classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('tradeImage', file);
+
+            try {
+                const res = await fetch(`${API_URL}/api/scan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: 'base64_placeholder' }) // Simulado para el endpoint
+                });
+
+                if (!res.ok) throw new Error('Error en el análisis');
+
+                const { data } = await res.json();
+                renderResult(data);
+            } catch (err) {
+                console.error(err);
+                loadingState.classList.add('hidden');
+                errorState.classList.remove('hidden');
+                document.getElementById('error-message').textContent = "No pude leer la imagen. Intenta con otra más clara.";
+
+                setTimeout(() => {
+                    errorState.classList.add('hidden');
+                    uploadState.classList.remove('hidden');
+                }, 3000);
+            }
+        });
+
+        function renderResult(data) {
+            loadingState.classList.add('hidden');
+            resultState.classList.remove('hidden');
+
+            document.getElementById('pos-display').textContent = data.position;
+            document.getElementById('pnl-display').textContent = data.pnl ? `${data.pnl}%` : '?';
+            document.getElementById('entry-display').textContent = data.entry || '?';
+            document.getElementById('mark-display').textContent = data.mark || '?';
+            document.getElementById('coach-note').textContent = `"${data.note}"`;
+
+            // Colorize PNL
+            const pnlEl = document.getElementById('pnl-display');
+            if (data.pnl > 0) pnlEl.style.color = '#00FF94';
+            else if (data.pnl < 0) pnlEl.style.color = '#FF2E2E';
+        }
+    </script>
+
+    <style>
+        .back-link {
+            color: #888;
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            display: block;
+        }
+
+        .stats-grid {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .value {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #fff;
+        }
+    </style>
+</body>
+
+</html>
